@@ -1,10 +1,14 @@
 """Persistence tests for the JSON note store (no server needed)."""
 
 import json
+from pathlib import Path
 
 import pytest
 
 from app.notes_store import NotesStore
+
+ROOT = Path(__file__).resolve().parent.parent
+MODEL = ROOT / "models" / "classifier.joblib"
 
 
 def make_store(tmp_path):
@@ -59,3 +63,22 @@ def test_store_file_is_valid_json(tmp_path):
     data = json.loads((tmp_path / "notes.json").read_text(encoding="utf-8"))
     assert isinstance(data, dict)
     assert data["notes"][0]["text"] == "hello"
+
+
+@pytest.mark.skipif(not MODEL.exists(), reason="run `python train.py` first (CLI classifies notes)")
+def test_load_starter_cli_falls_back_to_store_when_no_server(tmp_path, monkeypatch):
+    """python -m app.load_starter writes the store file only when no server answers."""
+    import app.load_starter as cli
+
+    monkeypatch.setattr(cli, "try_running_server", lambda: None)
+    target = tmp_path / "notes.json"
+
+    first = cli.load_offline(str(target))
+    assert first["added"] == 12 and first["classified"] == 12
+    second = cli.load_offline(str(target))
+    assert second["added"] == 0 and second["skipped"] == 12
+
+    store = NotesStore(target)
+    ids = [n["id"] for n in store.all_notes()]
+    assert len(ids) == 12
+    assert "N001" in ids and "N012" in ids

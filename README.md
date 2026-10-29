@@ -103,6 +103,16 @@ Starter notes keep their original IDs `N001`–`N012` and are classified by the
 trained model on load. Loading again adds nothing new (idempotent). Notes you
 add get IDs prefixed `U` and never reuse the reserved `N001`–`N012` range.
 
+While the server is running it owns `notes.json`; the CLI detects this and
+routes its request through the server automatically, so order never matters
+(and a direct file write can never be clobbered by the server's next save).
+With no server running, the CLI writes the store file directly.
+
+> Note: the very first server start can take up to ~1 minute on a fresh
+> machine while the embedding model is fetched/validated from the local
+> Hugging Face cache (or hub). Subsequent starts are in seconds. Without
+> `sentence-transformers` you get the instant TF-IDF fallback instead.
+
 ## Tests
 
 ```bash
