@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-from app.search import KeywordSearch, TfidfSearch
+from app.search import KeywordSearch, TfidfSearch, tokens
 
 ROOT = Path(__file__).resolve().parent
 if hasattr(sys.stdout, "reconfigure"):
