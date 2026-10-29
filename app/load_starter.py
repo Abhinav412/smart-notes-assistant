@@ -15,6 +15,7 @@ classified on the next server start, see server.classify_pending()).
 from __future__ import annotations
 
 import json
+import time
 from urllib.request import Request, urlopen
 
 from app.classifier import load_classifier
@@ -23,19 +24,26 @@ from app.notes_store import NotesStore
 SERVER_URL = "http://127.0.0.1:8000/api/notes/load-starter"
 
 
-def try_running_server(timeout: float = 3.0) -> dict | None:
-    """Return the server's load summary, or None if no server is reachable."""
-    try:
-        req = Request(
-            SERVER_URL,
-            data=b"{}",
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urlopen(req, timeout=timeout) as resp:
-            return json.load(resp)
-    except Exception:
-        return None
+def try_running_server(timeout: float = 3.0, attempts: int = 3) -> dict | None:
+    """Return the server's load summary, or None if no server is reachable.
+
+    Retries briefly so a server busy with startup work (e.g. first embedding
+    load) is still caught, rather than racing a direct file write against it.
+    """
+    for _ in range(attempts):
+        try:
+            req = Request(
+                SERVER_URL,
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urlopen(req, timeout=timeout) as resp:
+                return json.load(resp)
+        except Exception:
+            pass
+        time.sleep(1.0)
+    return None
 
 
 def load_offline(path: str | None = None) -> dict:
@@ -67,6 +75,11 @@ def main() -> None:
     print(
         f"starter notes (direct file): added {result['added']}, "
         f"skipped {result['skipped']}, classified {result['classified']} new notes"
+    )
+    print(
+        "NOTE: written directly to notes.json. Make sure the app server is NOT "
+        "already running with an older store in memory, or use the UI button /"
+        " the documented API call instead."
     )
 
 
