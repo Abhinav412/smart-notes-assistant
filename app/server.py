@@ -84,6 +84,13 @@ async def lifespan(app: FastAPI):
     global STATE
     STATE = NoteServiceState()
     STATE.classify_pending()
+    # Pre-load the embedding model once so the first search/first note-add
+    # (and the CLI's load-starter call) never trigger a slow lazy load.
+    try:
+        if hasattr(STATE.search_index, "_model") and STATE.search_index._model is None:
+            STATE.search_index._get_model()
+    except Exception:
+        pass  # fallback search will be used instead
     yield
 
 

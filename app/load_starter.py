@@ -24,11 +24,13 @@ from app.notes_store import NotesStore
 SERVER_URL = "http://127.0.0.1:8000/api/notes/load-starter"
 
 
-def try_running_server(timeout: float = 3.0, attempts: int = 3) -> dict | None:
+def try_running_server(timeout: float = 20.0, attempts: int = 3) -> dict | None:
     """Return the server's load summary, or None if no server is reachable.
 
-    Retries briefly so a server busy with startup work (e.g. first embedding
-    load) is still caught, rather than racing a direct file write against it.
+    Generous per-attempt timeout because the server may legitimately take a
+    few seconds on its first response (loading the embedding model); retries
+    cover stays during slow operations rather than racing a direct file
+    write against the server.
     """
     for _ in range(attempts):
         try:
