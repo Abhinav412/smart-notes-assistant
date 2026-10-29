@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Runtime state (recreated by the app; safe to delete)
+notes.json
+data/test_notes.json
+
+# Model artefacts are rebuilt with `python train.py`
+models/

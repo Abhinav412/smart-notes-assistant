@@ -1,0 +1,18 @@
+[
+  {"query": "when is my flight?", "expected": ["N003"]},
+  {"query": "pay rent", "expected": ["N010"]},
+  {"query": "laptop stand", "expected": ["N004"]},
+  {"query": "electricity bill", "expected": ["N002"]},
+  {"query": "chemistry lab report", "expected": ["N009"]},
+  {"query": "hotel reservation", "expected": ["N007"]},
+  {"query": "statistics assignment", "expected": ["N005"]},
+  {"query": "study material for python", "expected": ["N001"]},
+  {"query": "tickets for the train", "expected": ["N011"]},
+  {"query": "what do I need to buy?", "expected": ["N004", "N012"]},
+  {"query": "money transfer", "expected": ["N006"], "comment": "shares no words with the note"},
+  {"query": "travel booking", "expected": ["N003"], "comment": "shares no words with the note"},
+  {"query": "furniture for my desk", "expected": ["N004"], "comment": "shares no words with the note"},
+  {"query": "groceries for cooking", "expected": ["N012"], "comment": "shares no words with the note"},
+  {"query": "top up my balance", "expected": ["N006"], "comment": "shares no words with the note"},
+  {"query": "refund my order", "expected": ["N008"], "comment": "shares no words with the note; hard synonym query"}
+]

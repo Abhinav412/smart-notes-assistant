@@ -1,0 +1,11 @@
+fastapi==0.136.1
+uvicorn==0.42.0
+scikit-learn==1.9.1
+numpy==2.4.3
+joblib==1.5.3
+pydantic==2.12.5
+pytest==9.1.1
+httpx==0.28.1
+# Optional but used for the best search mode; degrades to TF-IDF without it.
+# First run downloads the all-MiniLM-L6-v2 model (~90 MB) from the Hugging Face hub.
+sentence-transformers==6.2.0

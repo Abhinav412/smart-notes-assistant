@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Smart Notes Assistant</title>
+<style>
+  :root { font-family: system-ui, sans-serif; }
+  body { margin: 0 auto; max-width: 780px; padding: 1rem; background: #f6f7f9; color: #222; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 1.4rem; }
+  section { background: #fff; border: 1px solid #e2e5ea; border-radius: 8px; padding: 0.9rem 1.1rem; margin-bottom: 1rem; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 64px; font: inherit; }
+  button { font: inherit; cursor: pointer; padding: 0.35rem 0.8rem; border: 1px solid #c9ced6; background: #eef1f5; border-radius: 6px; }
+  button.primary { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+  select, input[type="text"] { font: inherit; padding: 0.3rem 0.5rem; }
+  ul { list-style: none; padding: 0; margin: 0.5rem 0; }
+  li { padding: 0.45rem 0.2rem; border-bottom: 1px solid #eef0f3; }
+  .badge { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.75rem; border: 1px solid transparent; }
+  .study { background:#e8f1ff; border-color:#b6d2ff; }
+  .money { background:#fff5df; border-color:#ffd98a; }
+  .travel { background:#e6f7ef; border-color:#a7e0c5; }
+  .shopping { background:#f7e9ff; border-color:#d3b0ef; }
+  .uncertain-badge { background:#ffe4e4; border-color:#f3a6a6; color:#8a1d1d; font-weight: 600; }
+  .note-id { color: #777; font-size: 0.8rem; }
+  .muted { color: #888; }
+  .score { color:#2b6cb0; font-size: 0.8rem; }
+  .lowrelevance { opacity: 0.55; }
+  .error, .info, .warn { margin: 0.4rem 0; padding: 0.4rem 0.6rem; border-radius: 6px; display: none; }
+  .error { background:#fde8e8; color:#8a1d1d; display:none; }
+  .warn { background:#fff5df; color:#7a5b12; }
+  .info { background:#e8f1ff; color:#1c4d8f; }
+</style>
+</head>
+<body>
+<h1>Smart Notes Assistant</h1>
+<p class="muted" id="modelInfo">loading…</p>
+
+<section>
+  <h2>Add a note</h2>
+  <textarea id="newText" placeholder="e.g. Book train tickets for Friday."></textarea>
+  <div style="margin-top:0.5rem">
+    <button class="primary" onclick="addNote()">Add note</button>
+    <span id="resultMsg"></span>
+  </div>
+  <div id="addError" class="error"></div>
+  <div id="preview" class="info" style="display:none"></div>
+</section>
+
+<section>
+  <h2>Saved notes</h2>
+  <div>
+    <label>Filter:
+      <select id="filter" onchange="refresh()">
+        <option value="">All</option>
+        <option value="Study">Study</option>
+        <option value="Money">Money</option>
+        <option value="Travel">Travel</option>
+        <option value="Shopping">Shopping</option>
+        <option value="UNCERTAIN">Uncertain</option>
+      </select>
+    </label>
+    <button onclick="loadStarter()">Load starter notes</button>
+    <span id="starterMsg" class="muted"></span>
+  </div>
+  <ul id="notesList"></ul>
+</section>
+
+<section>
+  <h2>Search notes</h2>
+  <input type="text" id="query" placeholder='e.g. hotel or "what do I need to buy?"' style="width:70%">
+  <button onclick="doSearch()">Search</button>
+  <div id="searchMsg" class="warn" style="display:none"></div>
+  <ul id="searchResults"></ul>
+</section>
+
+<script>
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, body };
+}
+
+function badgeFor(note) {
+  const cls = (note.category || '').toLowerCase();
+  let html = note.category
+    ? `<span class="badge ${cls}">${note.category}</span>`
+    : '<span class="badge">unclassified</span>';
+  if (note.uncertain) html += ' <span class="badge uncertain-badge">Uncertain</span>';
+  return html;
+}
+
+function noteLine(n, score) {
+  return `<li class="${score !== undefined && !score.relevant ? 'lowrelevance' : ''}">
+    <span class="note-id">${n.id}</span> ${badgeFor(n)}<br>
+    ${n.text}
+    ${score !== undefined ? `<span class="score">score ${Number(score.score).toFixed(2)}${score.relevant ? '' : ' (low relevance)'}</span>` : ''}
+  </li>`;
+}
+
+async function refresh() {
+  const f = document.getElementById('filter').value;
+  const params = new URLSearchParams();
+  if (f === 'UNCERTAIN') params.set('uncertain', 'true');
+  else if (f) params.set('category', f);
+  const r = await api('/api/notes?' + params.toString());
+  const list = document.getElementById('notesList');
+  list.innerHTML = '';
+  if (!r.ok) { list.innerHTML = `<li class="error">Failed to load notes: ${r.status}</li>`; return; }
+  const notes = r.body.notes || [];
+  document.getElementById('notesList').innerHTML =
+    notes.length
+      ? notes.map(n => noteLine(n)).join('')
+      : '<li class="muted">No notes yet. Add one above or load the starter notes.</li>';
+}
+
+async function addNote() {
+  const err = document.getElementById('addError');
+  const msg = document.getElementById('resultMsg');
+  const preview = document.getElementById('preview');
+  err.style.display = 'none'; msg.textContent = ''; preview.style.display = 'none';
+  const text = document.getElementById('newText').value.trim();
+  if (!text) {
+    err.textContent = 'Please type a note before saving.';
+    err.style.display = 'block';
+    return;
+  }
+  const r = await api('/api/notes', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text}),
+  });
+  if (!r.ok) {
+    err.textContent = r.body.detail || `Could not save note (HTTP ${r.status}).`;
+    err.style.display = 'block';
+    return;
+  }
+  msg.textContent = `Saved as ${r.body.id}.`;
+  preview.innerHTML = `Predicted: ${badgeFor(r.body)}`;
+  preview.style.display = 'block';
+  document.getElementById('newText').value = '';
+  refresh();
+}
+
+async function loadStarter() {
+  const r = await api('/api/notes/load-starter', {method: 'POST'});
+  document.getElementById('starterMsg').textContent = r.ok
+    ? `added ${r.body.added}, skipped ${r.body.skipped}`
+    : 'failed to load starter notes';
+  refresh();
+}
+
+async function doSearch() {
+  const msg = document.getElementById('searchMsg');
+  const list = document.getElementById('searchResults');
+  msg.style.display = 'none'; list.innerHTML = '';
+  const q = document.getElementById('query').value.trim();
+  if (!q) {
+    msg.textContent = 'Type a search term first, e.g. "hotel".';
+    msg.style.display = 'block';
+    return;
+  }
+  const r = await api('/api/search?q=' + encodeURIComponent(q));
+  if (!r.ok) {
+    msg.textContent = r.body.detail || `Search failed (HTTP ${r.status}).`;
+    msg.style.display = 'block';
+    return;
+  }
+  if (r.body.message) {
+    msg.textContent = r.body.message;
+    msg.style.display = 'block';
+  }
+  list.innerHTML = r.body.results.map(res => noteLine(res, res)).join('');
+}
+
+api('/api/model-info').then(r => {
+  document.getElementById('modelInfo').textContent = r.ok && r.body.model
+    ? `Model: ${r.body.model}`
+    : 'Model info unavailable — did you run `python train.py` and start the server?';
+});
+refresh();
+</script>
+</body>
+</html>
