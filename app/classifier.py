@@ -6,10 +6,12 @@ contains the fitted pipeline, the label list and the uncertainty cutoff.
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import joblib
 import numpy as np
+from sklearn.exceptions import InconsistentVersionWarning
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT / "models" / "classifier.joblib"
@@ -50,4 +52,20 @@ def load_classifier() -> NoteClassifier:
         raise FileNotFoundError(
             f"Model bundle not found at {MODEL_PATH}. Run 'python train.py' first."
         )
-    return NoteClassifier(joblib.load(MODEL_PATH))
+    # A bundle saved by a different scikit-learn version may unpickle "fine"
+    # (only issuing a warning) and then crash later inside predict_proba —
+    # which surfaced as an unexplained HTTP 500 on the first classification
+    # request. Turn the warning into an error here so a mismatch fails at
+    # startup with a clear message instead.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", InconsistentVersionWarning)
+        try:
+            bundle = joblib.load(MODEL_PATH)
+        except InconsistentVersionWarning as exc:
+            raise RuntimeError(
+                "Model bundle / environment mismatch: the bundle in "
+                f"{MODEL_PATH} was saved by a different scikit-learn "
+                f"version than the one installed here ({exc}). Serve the "
+                "app from the same environment that ran 'python train.py'."
+            ) from exc
+    return NoteClassifier(bundle)

@@ -143,6 +143,7 @@ python error_evidence.py      # feature-level evidence for analysed mistakes
 | --- | --- |
 | `POST /classify` | `{"text": "..."}` → `{category, uncertain, confidence, margin}` (contract) |
 | `POST /api/notes` | Add a note (classified + persisted), returns the stored note |
+| `DELETE /api/notes/{note_id}` | Delete a note (persisted; removed from search results immediately) |
 | `GET /api/notes?category=&uncertain=` | List / filter notes |
 | `POST /api/notes/load-starter` | Idempotent starter-note load |
 | `GET /api/search?q=` | Ranked results; `relevant` flag + explicit "No good match" message |

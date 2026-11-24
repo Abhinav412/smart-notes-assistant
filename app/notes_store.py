@@ -2,7 +2,8 @@
 
 Keeps the 12 supplied starter notes under their original IDs (N001-N012);
 user-added notes always get IDs prefixed with "U" so reserved IDs are never
-reused. Writes are atomic (temp file + replace) so a crash cannot corrupt
+reused. Notes can be removed with delete(); deletions are persisted
+immediately. Writes are atomic (temp file + replace) so a crash cannot corrupt
 the store.
 """
 
@@ -96,6 +97,22 @@ class NotesStore:
         self._notes.append(note)
         self.save()
         return note
+
+    def delete(self, note_id: str) -> bool:
+        """Remove a note by ID. Returns True if it existed (and was saved).
+
+        Deletion is persisted to disk immediately, so the note (and its
+        stored category/uncertainty fields) stays deleted after a restart.
+        """
+        index = next(
+            (i for i, n in enumerate(self._notes) if n["id"] == note_id),
+            None,
+        )
+        if index is None:
+            return False
+        del self._notes[index]
+        self.save()
+        return True
 
     def load_starter(self, path: Path = STARTER_PATH) -> dict:
         """Load data/starter_notes.json keeping its original IDs.

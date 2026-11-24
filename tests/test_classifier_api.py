@@ -108,6 +108,35 @@ def test_add_note_assigns_user_id_and_classification(client):
     assert isinstance(body["uncertain"], bool)
 
 
+def test_delete_note_persists_and_leaves_search(client):
+    text = "Ship the parcel to the Rajahmundry branch office."
+    token = "Rajahmundry"
+    created = client.post("/api/notes", json={"text": text})
+    assert created.status_code == 201
+    note_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/notes/{note_id}")
+    assert deleted.status_code == 204
+
+    # Deleting the same ID again means it is gone.
+    assert client.delete(f"/api/notes/{note_id}").status_code == 404
+
+    # Gone from the list (including its category/uncertainty fields).
+    notes = client.get("/api/notes").json()["notes"]
+    assert note_id not in {n["id"] for n in notes}
+
+    # Gone from search results (the fitted index no longer contains it).
+    results = client.get("/api/search", params={"q": token}).json()["results"]
+    assert note_id not in {r["id"] for r in results}
+
+    # Restart simulation: a fresh TestClient re-runs startup, reloading the
+    # store from disk — the note must stay deleted.
+    with TestClient(app) as restarted:
+        notes = restarted.get("/api/notes").json()["notes"]
+        assert note_id not in {n["id"] for n in notes}
+        assert restarted.delete(f"/api/notes/{note_id}").status_code == 404
+
+
 def test_starter_load_via_api_is_idempotent(client):
     first = client.post("/api/notes/load-starter").json()
     second = client.post("/api/notes/load-starter").json()

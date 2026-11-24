@@ -11,6 +11,7 @@
   textarea { width: 100%; box-sizing: border-box; min-height: 64px; font: inherit; }
   button { font: inherit; cursor: pointer; padding: 0.35rem 0.8rem; border: 1px solid #c9ced6; background: #eef1f5; border-radius: 6px; }
   button.primary { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+  button.danger { background: #fde8e8; color: #8a1d1d; border-color: #f0a8a8; }
   select, input[type="text"] { font: inherit; padding: 0.3rem 0.5rem; }
   ul { list-style: none; padding: 0; margin: 0.5rem 0; }
   li { padding: 0.45rem 0.2rem; border-bottom: 1px solid #eef0f3; }
@@ -88,12 +89,31 @@ function badgeFor(note) {
   return html;
 }
 
-function noteLine(n, score) {
+function noteLine(n, score, deletable) {
   return `<li class="${score !== undefined && !score.relevant ? 'lowrelevance' : ''}">
-    <span class="note-id">${n.id}</span> ${badgeFor(n)}<br>
+    <span class="note-id">${n.id}</span> ${badgeFor(n)}
+    ${deletable ? `<button class="danger" onclick="deleteNote('${n.id}')">Delete</button>` : ''}<br>
     ${n.text}
     ${score !== undefined ? `<span class="score">score ${Number(score.score).toFixed(2)}${score.relevant ? '' : ' (low relevance)'}</span>` : ''}
   </li>`;
+}
+
+async function deleteNote(id) {
+  if (!confirm(`Delete note ${id}? This cannot be undone.`)) return;
+  const err = document.getElementById('addError');
+  const msg = document.getElementById('resultMsg');
+  err.style.display = 'none'; msg.textContent = '';
+  const r = await api('/api/notes/' + id, {method: 'DELETE'});
+  if (!r.ok) {
+    err.textContent = r.body.detail || `Could not delete note ${id} (HTTP ${r.status}).`;
+    err.style.display = 'block';
+    return;
+  }
+  msg.textContent = `Deleted ${id}.`;
+  refresh();
+  // If the deleted note is visible in search results, drop it from there too.
+  const q = document.getElementById('query').value.trim();
+  if (q) doSearch();
 }
 
 async function refresh() {
@@ -108,7 +128,7 @@ async function refresh() {
   const notes = r.body.notes || [];
   document.getElementById('notesList').innerHTML =
     notes.length
-      ? notes.map(n => noteLine(n)).join('')
+      ? notes.map(n => noteLine(n, undefined, true)).join('')
       : '<li class="muted">No notes yet. Add one above or load the starter notes.</li>';
 }
 
@@ -168,7 +188,7 @@ async function doSearch() {
     msg.textContent = r.body.message;
     msg.style.display = 'block';
   }
-  list.innerHTML = r.body.results.map(res => noteLine(res, res)).join('');
+  list.innerHTML = r.body.results.map(res => noteLine(res, res, true)).join('');
 }
 
 api('/api/model-info').then(r => {

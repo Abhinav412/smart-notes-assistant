@@ -11,8 +11,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -83,6 +83,11 @@ STATE: NoteServiceState | None = None
 async def lifespan(app: FastAPI):
     global STATE
     STATE = NoteServiceState()
+    # Smoke-test the model once at startup. If the environment does not
+    # match the one that trained the bundle, predict_proba can raise at
+    # request time (seen as a bare HTTP 500 on the first "Add note").
+    # Failing here makes the cause visible at boot instead.
+    STATE.classifier.classify("startup smoke test")
     STATE.classify_pending()
     # Pre-load the embedding model once so the first search/first note-add
     # (and the CLI's load-starter call) never trigger a slow lazy load.
@@ -125,6 +130,20 @@ def add_note(body: TextIn):
     )
     state.refit_search()
     return note
+
+
+@app.delete("/api/notes/{note_id}", status_code=204)
+def delete_note(note_id: str):
+    state = require_state()
+    if not state.store.delete(note_id):
+        raise HTTPException(
+            status_code=404, detail=f"note {note_id!r} not found"
+        )
+    # The search indices hold in-memory state over the notes, so refit them
+    # right away — otherwise the deleted note would keep showing up in
+    # search results until the server restarts.
+    state.refit_search()
+    return Response(status_code=204)
 
 
 @app.get("/api/notes")
@@ -187,6 +206,17 @@ def search(q: str = Query(..., min_length=1)):
 @app.get("/api/model-info")
 def model_info():
     return {"model": require_state().classifier.description}
+
+
+# Unhandled errors: return the exception text inside `detail` so the UI's
+# error box (it already displays r.body.detail) can show the real cause
+# instead of a bare "HTTP 500". Starlette still logs the full traceback.
+@app.exception_handler(Exception)
+def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"internal error: {exc}"},
+    )
 
 
 # --- Static UI --------------------------------------------------------------
